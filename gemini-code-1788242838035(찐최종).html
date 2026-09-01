@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>교원 근무일수 & 시간외근무수당 정액분 계산 달력</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            800: '#065f46',
+                        },
+                        slate: {
+                            850: '#1e293b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+            background-color: #f8fafc;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+        }
+        .day-cell {
+            min-height: 110px;
+        }
+        @media (max-width: 640px) {
+            .day-cell {
+                min-height: 85px;
+            }
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col pb-12">
+
+    <!-- Header Navigation -->
+    <header class="bg-slate-850 text-white shadow-lg sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex flex-col md:flex-row justify-between items-center gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="bg-teal-500 text-white p-2.5 rounded-xl shadow-md">
+                    <i class="fa-solid fa-calendar-check text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+                        교원 근무일수 & 시간외 정액분 계산기
+                    </h1>
+                    <p class="text-xs sm:text-sm text-slate-300 font-medium">초·중·고 교원 복무, 기간 일괄 등록 및 대체공휴일 자동 감액 계산 달력</p>
+                </div>
+            </div>
+
+            <!-- Global Action Controls & Auth UI -->
+            <div class="flex items-center space-x-2 sm:space-x-3 w-full md:w-auto justify-end">
+                <div id="authContainer" class="flex items-center space-x-2">
+                    <!-- Google Login Button (Default View) -->
+                    <button id="googleLoginBtn" class="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-sm font-semibold transition flex items-center gap-2 shadow-sm">
+                        <i class="fa-brands fa-google text-rose-500"></i> Google 로그인
+                    </button>
+                    <!-- User Profile Badge (Hidden initially) -->
+                    <div id="userProfile" class="hidden items-center gap-2 bg-slate-700 px-3 py-1.5 rounded-lg">
+                        <img id="userAvatar" src="" alt="Profile" class="w-6 h-6 rounded-full">
+                        <span id="userName" class="text-xs font-semibold text-slate-200"></span>
+                        <button id="googleLogoutBtn" class="text-xs text-slate-400 hover:text-rose-400 ml-1 font-medium" title="로그아웃">
+                            <i class="fa-solid fa-right-from-bracket"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button id="todayBtn" class="px-3.5 py-2 bg-slate-700 hover:bg-slate-600 text-slate-100 rounded-lg text-sm font-semibold transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-clock-rotate-left"></i> 오늘
+                </button>
+                <button id="recordsBtn" class="px-3.5 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-sm font-semibold transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-list-check"></i> 사용 기록 관리
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-6 flex-grow w-full space-y-6">
+
+        <!-- Vacation Notice Banner (Jan, Feb, Aug) -->
+        <div id="vacationBanner" class="hidden bg-amber-50 border-l-4 border-amber-500 p-4 rounded-xl shadow-sm flex items-start gap-3.5 transition-all">
+            <i class="fa-solid fa-triangle-exclamation text-amber-600 text-xl mt-0.5 flex-shrink-0"></i>
+            <div>
+                <h3 class="font-bold text-amber-900 text-base">방학 기간 안내 (정액분 미지급 월)</h3>
+                <p class="text-sm text-amber-800 mt-0.5">
+                    1월, 2월, 8월은 방학 기간으로 초과근무 수당 정액분이 **원천 미지급**되는 달입니다. (단, 8시간 풀근무일수 및 기간별 복무 관리 기능은 정상 제공됩니다.)
+                </p>
+            </div>
+        </div>
+
+        <!-- KPI Dashboard Cards -->
+        <section class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-5">
+            <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition">
+                <div class="flex justify-between items-start">
+                    <span class="text-xs sm:text-sm font-bold text-slate-500">이번 달 총 평일수 (A)</span>
+                    <span class="p-2 bg-slate-100 text-slate-600 rounded-lg text-xs"><i class="fa-solid fa-calendar-days"></i></span>
+                </div>
+                <div class="mt-2 flex items-baseline gap-1">
+                    <span id="kpiTotalWeekdays" class="text-2xl sm:text-3xl font-black text-slate-800">0</span>
+                    <span class="text-sm font-bold text-slate-500">일</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">주말 및 법정/대체공휴일 제외</p>
+            </div>
+
+            <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition">
+                <div class="flex justify-between items-start">
+                    <span class="text-xs sm:text-sm font-bold text-slate-500">8시간 풀근무 (B)</span>
+                    <span class="p-2 bg-emerald-50 text-emerald-600 rounded-lg text-xs"><i class="fa-solid fa-user-check"></i></span>
+                </div>
+                <div class="mt-2 flex items-baseline gap-1">
+                    <span id="kpiWorkDays" class="text-2xl sm:text-3xl font-black text-emerald-600">0</span>
+                    <span class="text-sm font-bold text-slate-500">일</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">출장·육아시간 등 산입 포함</p>
+            </div>
+
+            <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition">
+                <div class="flex justify-between items-start">
+                    <span class="text-xs sm:text-sm font-bold text-slate-500">정액분 수당 상태</span>
+                    <span id="kpiStatusIcon" class="p-2 bg-blue-50 text-blue-600 rounded-lg text-xs"><i class="fa-solid fa-coins"></i></span>
+                </div>
+                <div class="mt-2">
+                    <span id="kpiAllowanceStatus" class="text-lg sm:text-xl font-black text-blue-600 leading-tight block">100% 지급 (10시간)</span>
+                </div>
+                <p id="kpiAllowanceDetail" class="text-xs text-slate-500 mt-1">기준 15일 이상 충족</p>
+            </div>
+
+            <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition">
+                <div class="flex justify-between items-start">
+                    <span class="text-xs sm:text-sm font-bold text-slate-500">감액 없는 잔여 휴가</span>
+                    <span class="p-2 bg-purple-50 text-purple-600 rounded-lg text-xs"><i class="fa-solid fa-umbrella-beach"></i></span>
+                </div>
+                <div class="mt-2 flex items-baseline gap-1">
+                    <span id="kpiSafeVacationDays" class="text-2xl sm:text-3xl font-black text-purple-600">0</span>
+                    <span class="text-sm font-bold text-slate-500">일</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">공통 공식: A - 15 - 차감일수</p>
+            </div>
+        </section>
+
+        <!-- Calendar Header Controls -->
+        <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center space-x-3 w-full md:w-auto justify-center">
+                <button id="prevMonthBtn" class="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 transition">
+                    <i class="fa-solid fa-chevron-left text-base"></i>
+                </button>
+
+                <div class="flex items-center space-x-2">
+                    <select id="yearSelect" class="font-bold text-xl sm:text-2xl text-slate-800 bg-transparent border-none focus:ring-0 cursor-pointer pr-1">
+                    </select>
+                    <span class="text-xl sm:text-2xl font-bold text-slate-800">년</span>
+
+                    <select id="monthSelect" class="font-bold text-xl sm:text-2xl text-teal-700 bg-transparent border-none focus:ring-0 cursor-pointer pr-1">
+                    </select>
+                    <span class="text-xl sm:text-2xl font-bold text-teal-700">월</span>
+                </div>
+
+                <button id="nextMonthBtn" class="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 transition">
+                    <i class="fa-solid fa-chevron-right text-base"></i>
+                </button>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-center gap-2 text-xs font-semibold">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span> 산입 (근무인정)
+                </span>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-100 text-rose-800">
+                    <span class="w-2 h-2 rounded-full bg-rose-500"></span> 제외 (미인정)
+                </span>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-100 text-amber-800">
+                    <span class="w-2 h-2 rounded-full bg-amber-500"></span> 휴업/대체공휴일
+                </span>
+            </div>
+        </div>
+
+        <!-- Main Calendar Grid -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="grid grid-cols-7 bg-slate-100 border-b border-slate-200 text-center text-xs sm:text-sm font-bold text-slate-600 py-3">
+                <div class="text-rose-500">일</div>
+                <div>월</div>
+                <div>화</div>
+                <div>수</div>
+                <div>목</div>
+                <div>금</div>
+                <div class="text-blue-500">토</div>
+            </div>
+            <div id="calendarGrid" class="calendar-grid divide-x divide-y divide-slate-100"></div>
+        </div>
+
+        <!-- Rule Summary -->
+        <section class="bg-slate-800 text-slate-200 p-5 rounded-2xl shadow-md text-xs sm:text-sm space-y-3">
+            <h4 class="font-bold text-base text-white flex items-center gap-2">
+                <i class="fa-solid fa-circle-info text-teal-400"></i> 교원 복무 및 초과근무수당 정액분 관련 주요 지침 안내
+            </h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                <div class="bg-slate-700/50 p-3.5 rounded-xl border border-slate-600/50 space-y-1.5">
+                    <span class="font-bold text-emerald-400 block"><i class="fa-solid fa-circle-check"></i> 8시간 풀근무 산입 (근무일수 인정)</span>
+                    <p class="text-slate-300 text-xs leading-relaxed">
+                        • 정상 출근, 출장, 육아시간(일 최대 2시간 사용 후 남은시간 근무), 재량휴업일 중 학교장 명령으로 출근한 경우.
+                    </p>
+                </div>
+                <div class="bg-slate-700/50 p-3.5 rounded-xl border border-slate-600/50 space-y-1.5">
+                    <span class="font-bold text-rose-400 block"><i class="fa-solid fa-circle-xmark"></i> 8시간 풀근무 제외 (근무일수 차감)</span>
+                    <p class="text-slate-300 text-xs leading-relaxed">
+                        • 단 10분이라도 사용한 조퇴/외출/지각, 반일연가, 종일연가, 결근, 병가, 재량휴업일(41조 연수), 대체공휴일.
+                    </p>
+                </div>
+            </div>
+            <p class="text-slate-400 text-xs">
+                ※ 정액분 수당 감액 계산: 월 15일 미만 출근 시 15일에 미달하는 부족 1일당 1/15씩 감액하여 지급됩니다. 매년 대체공휴일은 자동 계산되어 반영됩니다.
+            </p>
+        </section>
+    </main>
+
+    <!-- Event Modal -->
+    <div id="eventModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all flex flex-col max-h-[92vh]">
+            <div class="bg-slate-850 text-white px-6 py-4 flex justify-between items-center">
+                <div>
+                    <h3 id="modalDateTitle" class="text-lg font-bold text-white">2026년 3월 10일 (화)</h3>
+                    <p id="modalDateSubtitle" class="text-xs text-slate-300">복무 및 근무 상태 등록 (단일일자 또는 기간 설정)</p>
+                </div>
+                <button id="closeModalBtn" class="text-slate-400 hover:text-white p-1 rounded-lg transition">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-5 flex-grow">
+                <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                            <i class="fa-solid fa-calendar-range text-teal-600"></i> 복무 기간 설정 (며칠/몇주 단위)
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="enablePeriodCheck" class="w-4 h-4 text-teal-600 border-slate-300 rounded focus:ring-teal-500 cursor-pointer">
+                            <label for="enablePeriodCheck" class="text-xs font-bold text-slate-600 cursor-pointer select-none">기간으로 지정하기</label>
+                        </div>
+                    </div>
+
+                    <div id="periodInputContainer" class="grid grid-cols-2 gap-3 pt-1 hidden">
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-500 mb-1">시작일</label>
+                            <input type="date" id="startDateInput" class="w-full px-3 py-2 text-xs font-bold border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-500 mb-1">종료일</label>
+                            <input type="date" id="endDateInput" class="w-full px-3 py-2 text-xs font-bold border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white">
+                        </div>
+                        <p class="text-[11px] text-slate-500 col-span-2">
+                            ※ 기간 등록 시 주말과 공휴일을 제외한 평일에 일괄 반영됩니다.
+                        </p>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">복무 카테고리 선택</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button id="tabLeaveBtn" class="py-2.5 px-3 rounded-xl border border-slate-200 text-xs sm:text-sm font-bold hover:bg-slate-50 transition active-tab shadow-sm">
+                            <i class="fa-solid fa-plane-departure text-amber-500 mr-1"></i> 연가류
+                        </button>
+                        <button id="tabSickBtn" class="py-2.5 px-3 rounded-xl border border-slate-200 text-xs sm:text-sm font-bold hover:bg-slate-50 transition shadow-sm">
+                            <i class="fa-solid fa-notes-medical text-rose-500 mr-1"></i> 병가류
+                        </button>
+                        <button id="tabEtcBtn" class="py-2.5 px-3 rounded-xl border border-slate-200 text-xs sm:text-sm font-bold hover:bg-slate-50 transition shadow-sm">
+                            <i class="fa-solid fa-briefcase text-teal-500 mr-1"></i> 기타/휴업
+                        </button>
+                    </div>
+                </div>
+
+                <div id="subTypeContainer" class="space-y-2">
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">세부 복무 종류</label>
+                    <div id="subTypeOptions" class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1"></div>
+                </div>
+
+                <div>
+                    <label for="eventReason" class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">사유 / 메모 (선택)</label>
+                    <input type="text" id="eventReason" placeholder="예: 병원 진료, 결석계 제출, 개인 연가 등" class="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm transition">
+                </div>
+
+                <div id="impactSummary" class="p-3.5 rounded-xl text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200 flex items-start gap-2">
+                    <i class="fa-solid fa-circle-info text-slate-500 mt-0.5"></i>
+                    <span id="impactText">복무 항목을 선택해주세요.</span>
+                </div>
+            </div>
+
+            <div class="bg-slate-50 px-6 py-4 border-t border-slate-200 flex justify-between items-center">
+                <button id="deleteEventBtn" class="px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl text-sm font-bold transition flex items-center gap-1.5 hidden">
+                    <i class="fa-solid fa-trash-can"></i> 삭제
+                </button>
+                <div class="flex space-x-2 ml-auto">
+                    <button id="cancelModalBtn" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-sm font-bold transition">
+                        취소
+                    </button>
+                    <button id="saveEventBtn" class="px-5 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-sm font-bold transition shadow-sm">
+                        저장하기
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Records Modal -->
+    <div id="recordsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden transform transition-all flex flex-col max-h-[90vh]">
+            <div class="bg-slate-850 text-white px-6 py-4 flex justify-between items-center">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-teal-400"></i> 사용 복무 기록 조회 및 관리
+                    </h3>
+                    <p class="text-xs text-slate-300">저장된 모든 복무 내역을 확인하고 관리할 수 있습니다.</p>
+                </div>
+                <button id="closeRecordsModalBtn" class="text-slate-400 hover:text-white p-1 rounded-lg transition">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap gap-3 items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <select id="recordYearFilter" class="px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-bold focus:ring-teal-500">
+                        <option value="ALL">전체 연도</option>
+                    </select>
+                    <select id="recordTypeFilter" class="px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-bold focus:ring-teal-500">
+                        <option value="ALL">전체 복무 종류</option>
+                        <option value="EXCLUDED">근무 제외 항목만</option>
+                        <option value="INCLUDED">근무 산입 항목만</option>
+                    </select>
+                </div>
+                <div class="text-xs font-bold text-slate-500">
+                    총 <span id="recordCountText" class="text-teal-600 font-extrabold text-sm">0</span>건 등록됨
+                </div>
+            </div>
+
+            <div class="p-4 overflow-y-auto flex-grow max-h-[55vh]">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-200 text-xs font-bold text-slate-500 uppercase bg-slate-50">
+                            <th class="py-2.5 px-3">날짜</th>
+                            <th class="py-2.5 px-3">복무 종류</th>
+                            <th class="py-2.5 px-3">8시간 풀근무 여부</th>
+                            <th class="py-2.5 px-3">사유/메모</th>
+                            <th class="py-2.5 px-3 text-right">관리</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recordsTableBody" class="divide-y divide-slate-100 text-sm"></tbody>
+                </table>
+                <div id="noRecordsText" class="text-center py-12 text-slate-400 text-sm hidden">
+                    등록된 복무 기록이 없습니다.
+                </div>
+            </div>
+
+            <div class="bg-slate-50 px-6 py-3.5 border-t border-slate-200 flex justify-between items-center text-xs text-slate-500">
+                <span id="storageNoticeText">데이터는 계정에 안전하게 동기화됩니다.</span>
+                <button id="closeRecordsModalBtn2" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-sm font-bold transition">
+                    닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK (v10 Modular via CDN) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // =========================================================================
+        // Firebase 설정
+        // =========================================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyCEY6rFgAo0qoDNvWWbXYY0xwovn8OofHw",
+            authDomain: "calculate-working-days.firebaseapp.com",
+            projectId: "calculate-working-days",
+            storageBucket: "calculate-working-days.firebasestorage.app",
+            messagingSenderId: "1005874054843",
+            appId: "1:1005874054843:web:59391e884259d921680b9e"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+
+        // 로그인 상태 지속 유지 설정 (로컬 스토리지에 로그인 정보 보존)
+        setPersistence(auth, browserLocalPersistence).catch(err => console.error("Persistence error:", err));
+
+        let currentUser = null;
+        let unsubscribeSnapshot = null;
+
+        // Firebase Auth 상태 수신기
+        onAuthStateChanged(auth, async (user) => {
+            const loginBtn = document.getElementById('googleLoginBtn');
+            const profile = document.getElementById('userProfile');
+            const avatar = document.getElementById('userAvatar');
+            const name = document.getElementById('userName');
+
+            if (user) {
+                currentUser = user;
+                loginBtn.classList.add('hidden');
+                profile.classList.remove('hidden');
+                profile.classList.add('flex');
+                avatar.src = user.photoURL || 'https://via.placeholder.com/30';
+                name.textContent = user.displayName || user.email.split('@')[0];
+
+                const userDocRef = doc(db, "users", user.uid);
+                
+                // 로컬 스토리지 마이그레이션 처리
+                const localData = localStorage.getItem('teacher_work_records');
+                if (localData) {
+                    try {
+                        const parsed = JSON.parse(localData);
+                        const docSnap = await getDoc(userDocRef);
+                        if (!docSnap.exists()) {
+                            await setDoc(userDocRef, { records: parsed });
+                            localStorage.removeItem('teacher_work_records'); // 연동 후 로컬 비우기
+                        }
+                    } catch(e) { console.error(e); }
+                }
+
+                if (unsubscribeSnapshot) unsubscribeSnapshot();
+
+                unsubscribeSnapshot = onSnapshot(userDocRef, (snapshot) => {
+                    if (snapshot.exists()) {
+                        window.userRecords = snapshot.data().records || {};
+                    } else {
+                        window.userRecords = {};
+                    }
+                    window.renderCalendar();
+                    window.updateKPIs();
+                });
+            } else {
+                currentUser = null;
+                if (unsubscribeSnapshot) unsubscribeSnapshot();
+                loginBtn.classList.remove('hidden');
+                profile.classList.add('hidden');
+                profile.classList.remove('flex');
+                
+                // 비로그인 시 LocalStorage 동작
+                window.loadLocalRecords();
+                window.renderCalendar();
+                window.updateKPIs();
+            }
+        });
+
+        // 데이터 완전 저장/갱신 (삭제 시 Firestore 문서 전체 교체)
+        window.saveUserData = async function(records) {
+            window.userRecords = records;
+            if (currentUser) {
+                const userDocRef = doc(db, "users", currentUser.uid);
+                // merge: true 제거하여 삭제된 항목이 Firestore 문서에서도 완벽 삭제되도록 처리
+                await setDoc(userDocRef, { records: records });
+            } else {
+                localStorage.setItem('teacher_work_records', JSON.stringify(records));
+            }
+        };
+
+        // 구글 로그인/로그아웃 버튼 이벤트
+        document.getElementById('googleLoginBtn').addEventListener('click', () => {
+            signInWithPopup(auth, provider).catch(error => {
+                alert("구글 로그인 중 오류가 발생했습니다: " + error.message);
+            });
+        });
+
+        document.getElementById('googleLogoutBtn').addEventListener('click', () => {
+            if (confirm("로그아웃 하시겠습니까?")) {
+                signOut(auth).then(() => {
+                    alert("로그아웃되었습니다.");
+                });
+            }
+        });
+    </script>
+
+    <!-- Application Core Script -->
+    <script>
+        const SERVICE_TYPES = {
+            DAY_OFF: { name: '종일연가', cat: 'LEAVE', isFullWork: false, desc: '8시간 근무 미인정 (1일 차감)' },
+            HALF_OFF_AM: { name: '반일연가(오전)', cat: 'LEAVE', isFullWork: false, desc: '8시간 근무 미인정 (0.5일 차감)' },
+            HALF_OFF_PM: { name: '반일연가(오후)', cat: 'LEAVE', isFullWork: false, desc: '8시간 근무 미인정 (0.5일 차감)' },
+            EARLY_LEAVE: { name: '조퇴', cat: 'LEAVE', isFullWork: false, desc: '시간 분할 사용 - 8시간 근무 미인정' },
+            OUTING: { name: '외출', cat: 'LEAVE', isFullWork: false, desc: '시간 분할 사용 - 8시간 근무 미인정' },
+            LATE: { name: '지각', cat: 'LEAVE', isFullWork: false, desc: '시간 분할 사용 - 8시간 근무 미인정' },
+
+            SICK_DAY: { name: '병가 (종일)', cat: 'SICK', isFullWork: false, desc: '8시간 근무 미인정 (1일 차감)' },
+            SICK_HALF: { name: '반일병가', cat: 'SICK', isFullWork: false, desc: '8시간 근무 미인정 (0.5일 차감)' },
+            SICK_EARLY: { name: '병조퇴', cat: 'SICK', isFullWork: false, desc: '8시간 근무 미인정' },
+            SICK_OUTING: { name: '병외출', cat: 'SICK', isFullWork: false, desc: '8시간 근무 미인정' },
+            SICK_LATE: { name: '병지각', cat: 'SICK', isFullWork: false, desc: '8시간 근무 미인정' },
+            OFFICIAL_SICK: { name: '공무상병가', cat: 'SICK', isFullWork: false, desc: '8시간 근무 미인정' },
+            OFFICIAL_SICK_HALF: { name: '공무상반일병가', cat: 'SICK', isFullWork: false, desc: '8시간 근무 미인정' },
+            OFFICIAL_SICK_EARLY: { name: '공무상병조퇴', cat: 'SICK', isFullWork: false, desc: '8시간 근무 미인정' },
+            OFFICIAL_SICK_OUTING: { name: '공무상병외출', cat: 'SICK', isFullWork: false, desc: '8시간 근무 미인정' },
+            OFFICIAL_SICK_LATE: { name: '공무상병지각', cat: 'SICK', isFullWork: false, desc: '8시간 근무 미인정' },
+
+            PARENTING_TIME: { name: '육아시간', cat: 'ETC', isFullWork: true, desc: '일 최대 2시간 사용 후 남은 시간 근무 시 8시간 인정 (O)' },
+            BUSINESS_TRIP: { name: '출장', cat: 'ETC', isFullWork: true, desc: '정상 근무로 인정 (O)' },
+            DISCRETIONARY_WORK: { name: '재량휴업일 (정상출근)', cat: 'ETC', isFullWork: true, desc: '학교장 명령 출근 - 8시간 인정 (O)' },
+            DISCRETIONARY_41: { name: '재량휴업일 (41조연수)', cat: 'ETC', isFullWork: false, desc: '41조 연수 처리 - 8시간 근무 미인정 (X)' },
+            SUB_HOLIDAY_EXCLUDED: { name: '대체공휴일', cat: 'ETC', isFullWork: false, desc: '임시/갑작스러운 대체공휴일 처리 - 8시간 근무 미인정 (X)' },
+            VACATION_PERIOD: { name: '방학', cat: 'ETC', isFullWork: false, desc: '정액분 수당 미지급 기간' }
+        };
+
+        let currentYear = new Date().getFullYear();
+        let currentMonth = new Date().getMonth() + 1;
+        let selectedDateStr = '';
+        let activeTabCategory = 'LEAVE';
+        let selectedSubTypeKey = 'DAY_OFF';
+        
+        window.userRecords = {};
+
+        const LUNAR_HOLIDAYS_MAP = {
+            2024: [
+                { dates: ["2024-02-09", "2024-02-10", "2024-02-11"], name: "설날" },
+                { dates: ["2024-05-15"], name: "부처님오신날" },
+                { dates: ["2024-09-16", "2024-09-17", "2024-09-18"], name: "추석" }
+            ],
+            2025: [
+                { dates: ["2025-01-28", "2025-01-29", "2025-01-30"], name: "설날" },
+                { dates: ["2025-05-05"], name: "부처님오신날" },
+                { dates: ["2025-10-05", "2025-10-06", "2025-10-07"], name: "추석" }
+            ],
+            2026: [
+                { dates: ["2026-02-16", "2026-02-17", "2026-02-18"], name: "설날" },
+                { dates: ["2026-05-24"], name: "부처님오신날" },
+                { dates: ["2026-09-24", "2026-09-25", "2026-09-26"], name: "추석" }
+            ],
+            2027: [
+                { dates: ["2027-02-06", "2027-02-07", "2027-02-08"], name: "설날" },
+                { dates: ["2027-05-13"], name: "부처님오신날" },
+                { dates: ["2027-09-14", "2027-09-15", "2027-09-16"], name: "추석" }
+            ],
+            2028: [
+                { dates: ["2028-01-26", "2028-01-27", "2028-01-28"], name: "설날" },
+                { dates: ["2028-05-02"], name: "부처님오신날" },
+                { dates: ["2028-10-02", "2028-10-03", "2028-10-04"], name: "추석" }
+            ]
+        };
+
+        function formatDateString(year, month, day) {
+            const m = month < 10 ? '0' + month : month;
+            const d = day < 10 ? '0' + day : day;
+            return `${year}-${m}-${d}`;
+        }
+
+        function getYearHolidays(year) {
+            const holidays = {};
+            const fixedSolar = [
+                { month: 1, day: 1, name: "신정", substituteEligible: false },
+                { month: 3, day: 1, name: "삼일절", substituteEligible: true },
+                { month: 5, day: 5, name: "어린이날", substituteEligible: true },
+                { month: 6, day: 6, name: "현충일", substituteEligible: false },
+                { month: 8, day: 15, name: "광복절", substituteEligible: true },
+                { month: 10, day: 3, name: "개천절", substituteEligible: true },
+                { month: 10, day: 9, name: "한글날", substituteEligible: true },
+                { month: 12, day: 25, name: "성탄절", substituteEligible: true }
+            ];
+
+            fixedSolar.forEach(item => {
+                const dateStr = formatDateString(year, item.month, item.day);
+                holidays[dateStr] = { name: item.name, substituteEligible: item.substituteEligible };
+            });
+
+            if (LUNAR_HOLIDAYS_MAP[year]) {
+                LUNAR_HOLIDAYS_MAP[year].forEach(group => {
+                    group.dates.forEach(dateStr => {
+                        holidays[dateStr] = { name: group.name, substituteEligible: true };
+                    });
+                });
+            }
+
+            const dateKeys = Object.keys(holidays).sort();
+            const substituteHolidays = {};
+
+            dateKeys.forEach(dateStr => {
+                const hInfo = holidays[dateStr];
+                if (!hInfo.substituteEligible) return;
+
+                const [y, m, d] = dateStr.split('-').map(Number);
+                const dateObj = new Date(y, m - 1, d);
+                const dayOfWeek = dateObj.getDay();
+
+                if (dayOfWeek === 0 || dayOfWeek === 6) {
+                    let nextDay = new Date(dateObj);
+                    let found = false;
+                    while (!found) {
+                        nextDay.setDate(nextDay.getDate() + 1);
+                        const nextStr = formatDateString(nextDay.getFullYear(), nextDay.getMonth() + 1, nextDay.getDate());
+                        const nextDow = nextDay.getDay();
+
+                        if (nextDow !== 0 && nextDow !== 6 && !holidays[nextStr] && !substituteHolidays[nextStr]) {
+                            substituteHolidays[nextStr] = { name: "대체공휴일", isSubstitute: true };
+                            found = true;
+                        }
+                    }
+                }
+            });
+
+            const finalMap = {};
+            Object.keys(holidays).forEach(k => { finalMap[k] = holidays[k].name; });
+            Object.keys(substituteHolidays).forEach(k => { finalMap[k] = substituteHolidays[k].name; });
+            return finalMap;
+        }
+
+        window.loadLocalRecords = function() {
+            const stored = localStorage.getItem('teacher_work_records');
+            if (stored) {
+                try {
+                    window.userRecords = JSON.parse(stored);
+                } catch(e) { window.userRecords = {}; }
+            }
+        };
+
+        window.addEventListener('DOMContentLoaded', () => {
+            window.loadLocalRecords();
+            initSelects();
+            setupEventListeners();
+            window.renderCalendar();
+            window.updateKPIs();
+        });
+
+        function initSelects() {
+            const yearSelect = document.getElementById('yearSelect');
+            const monthSelect = document.getElementById('monthSelect');
+            yearSelect.innerHTML = '';
+            monthSelect.innerHTML = '';
+
+            for (let y = currentYear - 3; y <= currentYear + 3; y++) {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = y;
+                if (y === currentYear) opt.selected = true;
+                yearSelect.appendChild(opt);
+            }
+
+            for (let m = 1; m <= 12; m++) {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = m;
+                if (m === currentMonth) opt.selected = true;
+                monthSelect.appendChild(opt);
+            }
+        }
+
+        function setupEventListeners() {
+            document.getElementById('prevMonthBtn').addEventListener('click', () => {
+                if (currentMonth === 1) {
+                    currentMonth = 12;
+                    currentYear--;
+                } else {
+                    currentMonth--;
+                }
+                updateSelects();
+                window.renderCalendar();
+                window.updateKPIs();
+            });
+
+            document.getElementById('nextMonthBtn').addEventListener('click', () => {
+                if (currentMonth === 12) {
+                    currentMonth = 1;
+                    currentYear++;
+                } else {
+                    currentMonth++;
+                }
+                updateSelects();
+                window.renderCalendar();
+                window.updateKPIs();
+            });
+
+            document.getElementById('yearSelect').addEventListener('change', (e) => {
+                currentYear = parseInt(e.target.value);
+                window.renderCalendar();
+                window.updateKPIs();
+            });
+
+            document.getElementById('monthSelect').addEventListener('change', (e) => {
+                currentMonth = parseInt(e.target.value);
+                window.renderCalendar();
+                window.updateKPIs();
+            });
+
+            document.getElementById('todayBtn').addEventListener('click', () => {
+                const now = new Date();
+                currentYear = now.getFullYear();
+                currentMonth = now.getMonth() + 1;
+                updateSelects();
+                window.renderCalendar();
+                window.updateKPIs();
+            });
+
+            document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+            document.getElementById('cancelModalBtn').addEventListener('click', closeModal);
+            document.getElementById('saveEventBtn').addEventListener('click', saveEvent);
+            document.getElementById('deleteEventBtn').addEventListener('click', deleteEvent);
+
+            document.getElementById('tabLeaveBtn').addEventListener('click', () => switchTab('LEAVE'));
+            document.getElementById('tabSickBtn').addEventListener('click', () => switchTab('SICK'));
+            document.getElementById('tabEtcBtn').addEventListener('click', () => switchTab('ETC'));
+
+            document.getElementById('enablePeriodCheck').addEventListener('change', (e) => {
+                const container = document.getElementById('periodInputContainer');
+                if (e.target.checked) {
+                    container.classList.remove('hidden');
+                    document.getElementById('startDateInput').value = selectedDateStr;
+                    document.getElementById('endDateInput').value = selectedDateStr;
+                } else {
+                    container.classList.add('hidden');
+                }
+            });
+
+            document.getElementById('recordsBtn').addEventListener('click', openRecordsModal);
+            document.getElementById('closeRecordsModalBtn').addEventListener('click', closeRecordsModal);
+            document.getElementById('closeRecordsModalBtn2').addEventListener('click', closeRecordsModal);
+            document.getElementById('recordYearFilter').addEventListener('change', renderRecordsTable);
+            document.getElementById('recordTypeFilter').addEventListener('change', renderRecordsTable);
+        }
+
+        function updateSelects() {
+            document.getElementById('yearSelect').value = currentYear;
+            document.getElementById('monthSelect').value = currentMonth;
+        }
+
+        window.renderCalendar = function() {
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = '';
+
+            const firstDay = new Date(currentYear, currentMonth - 1, 1).getDay();
+            const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+            const holidays = getYearHolidays(currentYear);
+
+            const isVacationMonth = [1, 2, 8].includes(currentMonth);
+            const banner = document.getElementById('vacationBanner');
+            if (isVacationMonth) {
+                banner.classList.remove('hidden');
+            } else {
+                banner.classList.add('hidden');
+            }
+
+            for (let i = 0; i < firstDay; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = 'day-cell bg-slate-50/50 p-2 border-b border-r border-slate-100';
+                grid.appendChild(emptyCell);
+            }
+
+            const today = new Date();
+            const todayStr = formatDateString(today.getFullYear(), today.getMonth() + 1, today.getDate());
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = formatDateString(currentYear, currentMonth, d);
+                const dateObj = new Date(currentYear, currentMonth - 1, d);
+                const dayOfWeek = dateObj.getDay();
+
+                const isSunday = dayOfWeek === 0;
+                const isSaturday = dayOfWeek === 6;
+                const holidayName = holidays[dateStr];
+
+                const cell = document.createElement('div');
+                cell.className = `day-cell p-2 border-b border-r border-slate-100 relative cursor-pointer hover:bg-teal-50/40 transition flex flex-col justify-between ${dateStr === todayStr ? 'bg-amber-50/40' : ''}`;
+                cell.onclick = () => openEventModal(dateStr);
+
+                let dayNumClass = 'font-bold text-xs sm:text-sm ';
+                if (isSunday || (holidayName && !isSaturday)) dayNumClass += 'text-rose-600';
+                else if (isSaturday) dayNumClass += 'text-blue-600';
+                else dayNumClass += 'text-slate-700';
+
+                let topHtml = `<div class="flex justify-between items-start">
+                    <span class="${dayNumClass}">${d}</span>`;
+                if (holidayName && !isSunday && !isSaturday) {
+                    topHtml += `<span class="text-[10px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded">${holidayName}</span>`;
+                }
+                topHtml += `</div>`;
+
+                let contentHtml = '<div class="mt-1 space-y-1">';
+                const record = window.userRecords[dateStr];
+                if (record && SERVICE_TYPES[record.type]) {
+                    const st = SERVICE_TYPES[record.type];
+                    let badgeBg = st.isFullWork ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-rose-100 text-rose-800 border-rose-300';
+                    contentHtml += `
+                        <div class="text-[11px] font-bold px-1.5 py-0.5 rounded border ${badgeBg} truncate" title="${st.name} ${record.reason ? ': ' + record.reason : ''}">
+                            ${st.name}
+                        </div>
+                    `;
+                }
+                contentHtml += '</div>';
+
+                cell.innerHTML = topHtml + contentHtml;
+                grid.appendChild(cell);
+            }
+        };
+
+        window.updateKPIs = function() {
+            const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+            const holidays = getYearHolidays(currentYear);
+
+            let totalWeekdays = 0;
+            let fullWorkDays = 0;
+            let deductedDays = 0;
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = formatDateString(currentYear, currentMonth, d);
+                const dateObj = new Date(currentYear, currentMonth - 1, d);
+                const dayOfWeek = dateObj.getDay();
+
+                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                const isHoliday = !!holidays[dateStr];
+
+                if (!isWeekend && !isHoliday) {
+                    totalWeekdays++;
+                    const record = window.userRecords[dateStr];
+
+                    if (!record) {
+                        fullWorkDays++;
+                    } else {
+                        const st = SERVICE_TYPES[record.type];
+                        if (st && st.isFullWork) {
+                            fullWorkDays++;
+                        } else {
+                            deductedDays++;
+                        }
+                    }
+                }
+            }
+
+            document.getElementById('kpiTotalWeekdays').textContent = totalWeekdays;
+            document.getElementById('kpiWorkDays').textContent = fullWorkDays;
+
+            const isVacationMonth = [1, 2, 8].includes(currentMonth);
+            const statusElem = document.getElementById('kpiAllowanceStatus');
+            const detailElem = document.getElementById('kpiAllowanceDetail');
+
+            if (isVacationMonth) {
+                statusElem.textContent = "미지급 (방학)";
+                statusElem.className = "text-lg sm:text-xl font-black text-slate-400 leading-tight block";
+                detailElem.textContent = "방학 달 정액분 미지급 규칙 적용";
+            } else if (fullWorkDays >= 15) {
+                statusElem.textContent = "100% 지급 (10시간)";
+                statusElem.className = "text-lg sm:text-xl font-black text-blue-600 leading-tight block";
+                detailElem.textContent = `기준 15일 이상 충족 (${fullWorkDays}일 근무)`;
+            } else {
+                const diff = 15 - fullWorkDays;
+                statusElem.textContent = `감액 지급 (${fullWorkDays}/15일)`;
+                statusElem.className = "text-lg sm:text-xl font-black text-rose-600 leading-tight block";
+                detailElem.textContent = `15일 미달로 ${diff}/15 감액 공제됨`;
+            }
+
+            const safeVacation = totalWeekdays - 15 - deductedDays;
+            document.getElementById('kpiSafeVacationDays').textContent = Math.max(0, safeVacation);
+        };
+
+        function openEventModal(dateStr) {
+            selectedDateStr = dateStr;
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const dateObj = new Date(y, m - 1, d);
+            const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+
+            document.getElementById('modalDateTitle').textContent = `${y}년 ${m}월 ${d}일 (${dayNames[dateObj.getDay()]})`;
+            document.getElementById('enablePeriodCheck').checked = false;
+            document.getElementById('periodInputContainer').classList.add('hidden');
+
+            const record = window.userRecords[dateStr];
+            const deleteBtn = document.getElementById('deleteEventBtn');
+
+            if (record && SERVICE_TYPES[record.type]) {
+                deleteBtn.classList.remove('hidden');
+                activeTabCategory = SERVICE_TYPES[record.type].cat;
+                selectedSubTypeKey = record.type;
+                document.getElementById('eventReason').value = record.reason || '';
+            } else {
+                deleteBtn.classList.add('hidden');
+                activeTabCategory = 'LEAVE';
+                selectedSubTypeKey = 'DAY_OFF';
+                document.getElementById('eventReason').value = '';
+            }
+
+            switchTab(activeTabCategory);
+            document.getElementById('eventModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('eventModal').classList.add('hidden');
+        }
+
+        function switchTab(cat) {
+            activeTabCategory = cat;
+
+            ['tabLeaveBtn', 'tabSickBtn', 'tabEtcBtn'].forEach(id => {
+                const btn = document.getElementById(id);
+                btn.classList.remove('border-teal-500', 'bg-teal-50', 'text-teal-700');
+            });
+
+            if (cat === 'LEAVE') document.getElementById('tabLeaveBtn').classList.add('border-teal-500', 'bg-teal-50', 'text-teal-700');
+            if (cat === 'SICK') document.getElementById('tabSickBtn').classList.add('border-teal-500', 'bg-teal-50', 'text-teal-700');
+            if (cat === 'ETC') document.getElementById('tabEtcBtn').classList.add('border-teal-500', 'bg-teal-50', 'text-teal-700');
+
+            renderSubTypes();
+        }
+
+        function renderSubTypes() {
+            const container = document.getElementById('subTypeOptions');
+            container.innerHTML = '';
+
+            let firstKeyInCat = null;
+            Object.keys(SERVICE_TYPES).forEach(key => {
+                const item = SERVICE_TYPES[key];
+                if (item.cat === activeTabCategory) {
+                    if (!firstKeyInCat) firstKeyInCat = key;
+
+                    const btn = document.createElement('button');
+                    const isSelected = selectedSubTypeKey === key;
+                    btn.type = 'button';
+                    btn.className = `p-2.5 text-left rounded-xl border text-xs font-bold transition flex flex-col justify-between ${isSelected ? 'border-teal-600 bg-teal-50/80 text-teal-900 ring-2 ring-teal-500/20' : 'border-slate-200 hover:bg-slate-50 text-slate-700'}`;
+                    btn.onclick = () => {
+                        selectedSubTypeKey = key;
+                        renderSubTypes();
+                        updateImpactText();
+                    };
+
+                    btn.innerHTML = `
+                        <div class="flex items-center justify-between w-full">
+                            <span>${item.name}</span>
+                            ${item.isFullWork ? '<span class="text-[10px] text-emerald-600 font-extrabold">인정</span>' : '<span class="text-[10px] text-rose-500 font-extrabold">제외</span>'}
+                        </div>
+                    `;
+                    container.appendChild(btn);
+                }
+            });
+
+            if (SERVICE_TYPES[selectedSubTypeKey].cat !== activeTabCategory) {
+                selectedSubTypeKey = firstKeyInCat;
+                renderSubTypes();
+            } else {
+                updateImpactText();
+            }
+        }
+
+        function updateImpactText() {
+            const item = SERVICE_TYPES[selectedSubTypeKey];
+            const textElem = document.getElementById('impactText');
+            if (item) {
+                textElem.textContent = `${item.name}: ${item.desc}`;
+            }
+        }
+
+        async function saveEvent() {
+            const isPeriod = document.getElementById('enablePeriodCheck').checked;
+            const reason = document.getElementById('eventReason').value.trim();
+            const updated = { ...window.userRecords };
+
+            if (isPeriod) {
+                const startStr = document.getElementById('startDateInput').value;
+                const endStr = document.getElementById('endDateInput').value;
+                if (!startStr || !endStr || startStr > endStr) {
+                    alert('올바른 시작일과 종료일을 선택해주세요.');
+                    return;
+                }
+
+                let cur = new Date(startStr);
+                const end = new Date(endStr);
+                const holidays = getYearHolidays(cur.getFullYear());
+
+                while (cur <= end) {
+                    const y = cur.getFullYear();
+                    const m = cur.getMonth() + 1;
+                    const d = cur.getDate();
+                    const dStr = formatDateString(y, m, d);
+                    const dow = cur.getDay();
+
+                    if (dow !== 0 && dow !== 6 && !holidays[dStr]) {
+                        updated[dStr] = { type: selectedSubTypeKey, reason: reason };
+                    }
+                    cur.setDate(cur.getDate() + 1);
+                }
+            } else {
+                updated[selectedDateStr] = { type: selectedSubTypeKey, reason: reason };
+            }
+
+            await window.saveUserData(updated);
+            closeModal();
+            window.renderCalendar();
+            window.updateKPIs();
+        }
+
+        async function deleteEvent() {
+            if (confirm('해당 복무 기록을 삭제하시겠습니까?')) {
+                const updated = { ...window.userRecords };
+                delete updated[selectedDateStr];
+                await window.saveUserData(updated);
+                closeModal();
+                window.renderCalendar();
+                window.updateKPIs();
+            }
+        }
+
+        function openRecordsModal() {
+            const yearFilter = document.getElementById('recordYearFilter');
+            yearFilter.innerHTML = '<option value="ALL">전체 연도</option>';
+            const years = new Set();
+            Object.keys(window.userRecords).forEach(k => years.add(k.split('-')[0]));
+            Array.from(years).sort().reverse().forEach(y => {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = `${y}년`;
+                yearFilter.appendChild(opt);
+            });
+
+            renderRecordsTable();
+            document.getElementById('recordsModal').classList.remove('hidden');
+        }
+
+        function closeRecordsModal() {
+            document.getElementById('recordsModal').classList.add('hidden');
+        }
+
+        function renderRecordsTable() {
+            const yearVal = document.getElementById('recordYearFilter').value;
+            const typeVal = document.getElementById('recordTypeFilter').value;
+            const tbody = document.getElementById('recordsTableBody');
+            const noRec = document.getElementById('noRecordsText');
+            tbody.innerHTML = '';
+
+            const keys = Object.keys(window.userRecords).sort().reverse();
+            let count = 0;
+
+            keys.forEach(dateStr => {
+                const rec = window.userRecords[dateStr];
+                const st = SERVICE_TYPES[rec.type];
+                if (!st) return;
+
+                const [y] = dateStr.split('-');
+                if (yearVal !== 'ALL' && y !== yearVal) return;
+                if (typeVal === 'EXCLUDED' && st.isFullWork) return;
+                if (typeVal === 'INCLUDED' && !st.isFullWork) return;
+
+                count++;
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition border-b border-slate-100';
+
+                tr.innerHTML = `
+                    <td class="py-2.5 px-3 font-bold text-slate-700">${dateStr}</td>
+                    <td class="py-2.5 px-3 font-bold text-slate-800">${st.name}</td>
+                    <td class="py-2.5 px-3">
+                        ${st.isFullWork ? '<span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-800">산입 (8시간 인정)</span>' : '<span class="px-2 py-0.5 rounded text-xs font-bold bg-rose-100 text-rose-800">제외 (미인정)</span>'}
+                    </td>
+                    <td class="py-2.5 px-3 text-slate-500 text-xs">${rec.reason || '-'}</td>
+                    <td class="py-2.5 px-3 text-right">
+                        <button class="px-2.5 py-1 text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold rounded-lg transition" onclick="deleteSingleRecord('${dateStr}')">삭제</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('recordCountText').textContent = count;
+            if (count === 0) {
+                noRec.classList.remove('hidden');
+            } else {
+                noRec.classList.add('hidden');
+            }
+        }
+
+        window.deleteSingleRecord = async function(dateStr) {
+            if (confirm(`${dateStr} 기록을 삭제하시겠습니까?`)) {
+                const updated = { ...window.userRecords };
+                delete updated[dateStr];
+                await window.saveUserData(updated);
+                renderRecordsTable();
+                window.renderCalendar();
+                window.updateKPIs();
+            }
+        };
+    </script>
+</body>
+</html>
